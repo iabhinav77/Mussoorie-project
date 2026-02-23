@@ -8,42 +8,54 @@
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <style>
-html, body { margin:0; padding:0; height:100%; }
-#map { height:100%; width:100%; }
+html, body { margin:0; height:100%; }
+#map { height:100%; }
+
+#fieldSelector {
+  position:absolute;
+  top:10px;
+  left:60px;
+  z-index:1000;
+  background:white;
+  padding:5px;
+}
+
 .legend {
-    background:white;
-    padding:10px;
-    font-size:12px;
+  position:absolute;
+  bottom:30px;
+  right:10px;
+  background:white;
+  padding:10px;
+  font-size:12px;
+  z-index:1000;
 }
 </style>
 </head>
 
 <body>
 
+<select id="fieldSelector"></select>
 <div id="map"></div>
+<div id="legend" class="legend"></div>
 
 <script>
 
 // ================= MAP INIT =================
 
-// ⚠️ CHANGE ZOOM IF YOUR TILES START AT DIFFERENT LEVEL
 var map = L.map('map').setView([30.45, 78.08], 12);
 
-// ================= BASE LAYERS =================
+// ================= TILE LAYERS =================
 
-// Satellite Tiles
 var satellite = L.tileLayer('satellite/{z}/{x}/{y}.png', {
-    maxZoom: 18,
-    minZoom: 10
+    minZoom: 12,
+    maxZoom: 16
 });
 
-// Toposheet Tiles
 var toposheet = L.tileLayer('toposheet/{z}/{x}/{y}.png', {
-    maxZoom: 18,
-    minZoom: 10
+    minZoom: 12,
+    maxZoom: 16
 });
 
-// Add default base
 satellite.addTo(map);
 
 var baseMaps = {
@@ -51,49 +63,96 @@ var baseMaps = {
     "Toposheet": toposheet
 };
 
-// ================= GEOJSON OVERLAYS =================
+// ================= GLOBAL VARIABLES =================
 
-var geologyLayer;
-var geomorphologyLayer;
-var roadsLayer;
+var currentLayer = null;
+var geojsonData = null;
+var legendDiv = document.getElementById("legend");
 
-fetch('Geology2M_GSI.geojson')
+// ================= COLOR GENERATOR =================
+
+function getColor(value, index) {
+    var colors = [
+        "#e41a1c","#377eb8","#4daf4a","#984ea3",
+        "#ff7f00","#ffff33","#a65628","#f781bf","#999999"
+    ];
+    return colors[index % colors.length];
+}
+
+// ================= LOAD GEOJSON =================
+
+fetch("Geology2M_GSI.geojson")
 .then(res => res.json())
 .then(data => {
-    geologyLayer = L.geoJSON(data, {
-        style: { color: "red", weight: 1 }
+
+    geojsonData = data;
+
+    // Populate dropdown with fields
+    var fields = Object.keys(data.features[0].properties);
+
+    var selector = document.getElementById("fieldSelector");
+    fields.forEach(field => {
+        var option = document.createElement("option");
+        option.value = field;
+        option.text = field;
+        selector.appendChild(option);
     });
+
+    drawLayer(fields[0]);
+
+    selector.addEventListener("change", function() {
+        drawLayer(this.value);
+    });
+
 });
 
-fetch('Geomorphology_GSI.geojson')
-.then(res => res.json())
-.then(data => {
-    geomorphologyLayer = L.geoJSON(data, {
-        style: { color: "blue", weight: 1 }
-    });
-});
+// ================= DRAW LAYER BASED ON FIELD =================
 
-fetch('road.geojson')
-.then(res => res.json())
-.then(data => {
-    roadsLayer = L.geoJSON(data, {
-        style: { color: "black", weight: 2 }
+function drawLayer(fieldName) {
+
+    if (currentLayer) {
+        map.removeLayer(currentLayer);
+    }
+
+    var uniqueValues = [...new Set(
+        geojsonData.features.map(f => f.properties[fieldName])
+    )];
+
+    currentLayer = L.geoJSON(geojsonData, {
+
+        style: function(feature) {
+            var val = feature.properties[fieldName];
+            var index = uniqueValues.indexOf(val);
+            return {
+                color: getColor(val, index),
+                weight: 1,
+                fillOpacity: 0.6
+            };
+        }
+
+    }).addTo(map);
+
+    updateLegend(uniqueValues, fieldName);
+}
+
+// ================= LEGEND =================
+
+function updateLegend(values, fieldName) {
+
+    legendDiv.innerHTML = "<b>" + fieldName + "</b><br>";
+
+    values.forEach((val, i) => {
+        legendDiv.innerHTML +=
+            '<div><span style="background:' +
+            getColor(val, i) +
+            ';width:15px;height:15px;display:inline-block;margin-right:5px;"></span>' +
+            val + '</div>';
     });
-});
+}
 
 // ================= LAYER CONTROL =================
 
-setTimeout(function() {
-
-    var overlayMaps = {};
-
-    if (geologyLayer) overlayMaps["Geology"] = geologyLayer;
-    if (geomorphologyLayer) overlayMaps["Geomorphology"] = geomorphologyLayer;
-    if (roadsLayer) overlayMaps["Roads"] = roadsLayer;
-
-    L.control.layers(baseMaps, overlayMaps).addTo(map);
-
-}, 1500);
+L.control.layers(baseMaps).addTo(map);
 
 </script>
 
