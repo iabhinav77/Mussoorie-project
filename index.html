@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>WebGIS Viewer</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet-side-by-side/leaflet-side-by-side.css" />
+<script src="https://unpkg.com/leaflet-side-by-side/leaflet-side-by-side.js"></script>
+
+<style>
+html, body { margin:0; height:100%; }
+#map { height:100%; }
+
+.legend {
+    background:white;
+    padding:10px;
+    font-size:12px;
+    line-height:18px;
+}
+</style>
+</head>
+
+<body>
+
+<select id="symbologySelector" style="position:absolute;top:10px;left:50px;z-index:1000;">
+    <option value="default">Default Style</option>
+    <option value="field1">Color by Field1</option>
+</select>
+
+<input type="range" id="opacitySlider" min="0" max="1" step="0.1"
+style="position:absolute;top:40px;left:50px;z-index:1000;">
+
+<div id="map"></div>
+
+<script>
+
+var map = L.map('map').setView([23, 78], 8);
+
+/* BASE LAYERS */
+
+var lulc = L.tileLayer('tiles/lulc/{z}/{x}/{y}.png');
+var topo = L.tileLayer('tiles/toposheet/{z}/{x}/{y}.png');
+var sentinel = L.tileLayer('tiles/sentinel/{z}/{x}/{y}.png');
+
+lulc.addTo(map);
+
+var baseMaps = {
+    "LULC": lulc,
+    "Toposheet": topo,
+    "Sentinel": sentinel
+};
+
+/* GEOJSON LAYERS */
+
+var geologyLayer;
+
+function loadGeology(styleType) {
+    fetch('data/geology.geojson')
+    .then(res => res.json())
+    .then(data => {
+
+        if (geologyLayer) map.removeLayer(geologyLayer);
+
+        geologyLayer = L.geoJSON(data, {
+            style: function(feature) {
+
+                if (styleType === "field1") {
+                    return {
+                        color: getColor(feature.properties.FIELD1),
+                        weight: 1
+                    };
+                } else {
+                    return { color: "black", weight:1 };
+                }
+            }
+        });
+
+        geologyLayer.addTo(map);
+        updateLegend(styleType);
+    });
+}
+
+function getColor(value) {
+    return value === "A" ? "red" :
+           value === "B" ? "blue" :
+           value === "C" ? "green" :
+           "gray";
+}
+
+/* LEGEND */
+
+var legend = L.control({position: 'bottomright'});
+
+legend.onAdd = function () {
+    this._div = L.DomUtil.create('div', 'legend');
+    return this._div;
+};
+
+legend.addTo(map);
+
+function updateLegend(type) {
+    var div = legend._div;
+    div.innerHTML = "<b>Legend</b><br>";
+
+    if (type === "field1") {
+        div.innerHTML +=
+        '<i style="background:red"></i> A<br>' +
+        '<i style="background:blue"></i> B<br>' +
+        '<i style="background:green"></i> C<br>';
+    }
+}
+
+/* DROPDOWN EVENT */
+
+document.getElementById("symbologySelector")
+.addEventListener("change", function() {
+    loadGeology(this.value);
+});
+
+/* OPACITY CONTROL */
+
+document.getElementById("opacitySlider")
+.addEventListener("input", function() {
+    if (geologyLayer) geologyLayer.setStyle({opacity:this.value});
+});
+
+/* LAYER CONTROL */
+
+var overlayMaps = {
+    "Geology": geologyLayer
+};
+
+L.control.layers(baseMaps, overlayMaps).addTo(map);
+
+/* SWIPE CONTROL */
+
+var sideBySide = L.control.sideBySide(sentinel, topo).addTo(map);
+
+loadGeology("default");
+
+</script>
+
+</body>
+</html>
