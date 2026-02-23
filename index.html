@@ -1,158 +1,206 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8" />
+<meta charset="utf-8"/>
 <title>Mussoorie WebGIS</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <style>
-html, body { margin:0; height:100%; }
-#map { height:100%; }
-
-#fieldSelector {
-  position:absolute;
-  top:10px;
-  left:60px;
-  z-index:1000;
-  background:white;
-  padding:5px;
+html,body{margin:0;height:100%;}
+#map{height:100%;}
+#controls{
+ position:absolute;
+ top:10px;
+ left:60px;
+ background:white;
+ padding:8px;
+ z-index:1000;
 }
-
-.legend {
-  position:absolute;
-  bottom:30px;
-  right:10px;
-  background:white;
-  padding:10px;
-  font-size:12px;
-  z-index:1000;
+.legend{
+ position:absolute;
+ bottom:30px;
+ right:10px;
+ background:white;
+ padding:10px;
+ font-size:12px;
+ z-index:1000;
 }
 </style>
 </head>
 
 <body>
 
+<div id="controls">
+<select id="layerSelector"></select>
 <select id="fieldSelector"></select>
+</div>
+
 <div id="map"></div>
 <div id="legend" class="legend"></div>
 
 <script>
 
-// ================= MAP INIT =================
+// ================= MAP =================
 
-var map = L.map('map').setView([30.45, 78.08], 12);
+var map = L.map('map').setView([30.45,78.08],12);
 
-// ================= TILE LAYERS =================
+// ================= BASE MAPS =================
 
-var satellite = L.tileLayer('satellite/{z}/{x}/{y}.png', {
-    minZoom: 12,
-    maxZoom: 16
+// IMPORTANT: space encoded as %20
+var satellite = L.tileLayer('Satellite%20Imagery/{z}/{x}/{y}.png',{
+ minZoom:12,
+ maxZoom:16
 });
 
-var toposheet = L.tileLayer('toposheet/{z}/{x}/{y}.png', {
-    minZoom: 12,
-    maxZoom: 16
+var toposheet = L.tileLayer('Toposheet_png/{z}/{x}/{y}.png',{
+ minZoom:12,
+ maxZoom:16
 });
 
 satellite.addTo(map);
 
-var baseMaps = {
-    "Satellite": satellite,
-    "Toposheet": toposheet
+L.control.layers(
+ {"Satellite":satellite,"Toposheet":toposheet},
+ {}
+).addTo(map);
+
+// ================= GEOJSON FILES =================
+
+var geojsonFiles = {
+ "Geology":"Geology2M_GSI.geojson",
+ "Geomorphology":"Geomorphology_GSI.geojson",
+ "Road":"road.geojson"
 };
 
-// ================= GLOBAL VARIABLES =================
-
-var currentLayer = null;
-var geojsonData = null;
+var loadedLayers = {};
+var activeLayerName = null;
 var legendDiv = document.getElementById("legend");
 
-// ================= COLOR GENERATOR =================
+// ================= LOAD ALL GEOJSON =================
 
-function getColor(value, index) {
-    var colors = [
-        "#e41a1c","#377eb8","#4daf4a","#984ea3",
-        "#ff7f00","#ffff33","#a65628","#f781bf","#999999"
-    ];
-    return colors[index % colors.length];
-}
+Object.keys(geojsonFiles).forEach(name=>{
 
-// ================= LOAD GEOJSON =================
-
-fetch("Geology2M_GSI.geojson")
-.then(res => res.json())
-.then(data => {
-
-    geojsonData = data;
-
-    // Populate dropdown with fields
-    var fields = Object.keys(data.features[0].properties);
-
-    var selector = document.getElementById("fieldSelector");
-    fields.forEach(field => {
-        var option = document.createElement("option");
-        option.value = field;
-        option.text = field;
-        selector.appendChild(option);
-    });
-
-    drawLayer(fields[0]);
-
-    selector.addEventListener("change", function() {
-        drawLayer(this.value);
-    });
+ fetch(geojsonFiles[name])
+ .then(res=>res.json())
+ .then(data=>{
+  loadedLayers[name] = {
+   data:data,
+   layer:null
+  };
+  updateLayerDropdown();
+ });
 
 });
 
-// ================= DRAW LAYER BASED ON FIELD =================
+// ================= DROPDOWN SETUP =================
 
-function drawLayer(fieldName) {
+function updateLayerDropdown(){
 
-    if (currentLayer) {
-        map.removeLayer(currentLayer);
-    }
+ var selector = document.getElementById("layerSelector");
+ selector.innerHTML="";
 
-    var uniqueValues = [...new Set(
-        geojsonData.features.map(f => f.properties[fieldName])
-    )];
+ Object.keys(loadedLayers).forEach(name=>{
+  var option=document.createElement("option");
+  option.value=name;
+  option.text=name;
+  selector.appendChild(option);
+ });
 
-    currentLayer = L.geoJSON(geojsonData, {
+ selector.onchange=function(){
+  activateLayer(this.value);
+ };
 
-        style: function(feature) {
-            var val = feature.properties[fieldName];
-            var index = uniqueValues.indexOf(val);
-            return {
-                color: getColor(val, index),
-                weight: 1,
-                fillOpacity: 0.6
-            };
-        }
+ if(!activeLayerName){
+  activateLayer(Object.keys(loadedLayers)[0]);
+ }
+}
 
-    }).addTo(map);
+// ================= ACTIVATE LAYER =================
 
-    updateLegend(uniqueValues, fieldName);
+function activateLayer(name){
+
+ activeLayerName=name;
+
+ // remove old layer
+ Object.values(loadedLayers).forEach(obj=>{
+  if(obj.layer) map.removeLayer(obj.layer);
+ });
+
+ var data=loadedLayers[name].data;
+ var fields=Object.keys(data.features[0].properties);
+
+ var fieldSelector=document.getElementById("fieldSelector");
+ fieldSelector.innerHTML="";
+
+ fields.forEach(f=>{
+  var option=document.createElement("option");
+  option.value=f;
+  option.text=f;
+  fieldSelector.appendChild(option);
+ });
+
+ fieldSelector.onchange=function(){
+  drawLayer(name,this.value);
+ };
+
+ drawLayer(name,fields[0]);
+}
+
+// ================= DRAW LAYER =================
+
+function drawLayer(name,field){
+
+ if(loadedLayers[name].layer)
+  map.removeLayer(loadedLayers[name].layer);
+
+ var data=loadedLayers[name].data;
+
+ var values=[...new Set(
+  data.features.map(f=>f.properties[field])
+ )];
+
+ function getColor(index){
+  var colors=[
+   "#e41a1c","#377eb8","#4daf4a",
+   "#984ea3","#ff7f00","#ffff33",
+   "#a65628","#f781bf","#999999"
+  ];
+  return colors[index%colors.length];
+ }
+
+ loadedLayers[name].layer=L.geoJSON(data,{
+  style:function(feature){
+   var val=feature.properties[field];
+   var idx=values.indexOf(val);
+   return{
+    color:getColor(idx),
+    weight:1,
+    fillOpacity:0.6
+   };
+  }
+ }).addTo(map);
+
+ updateLegend(values,field);
 }
 
 // ================= LEGEND =================
 
-function updateLegend(values, fieldName) {
+function updateLegend(values,field){
 
-    legendDiv.innerHTML = "<b>" + fieldName + "</b><br>";
+ legendDiv.innerHTML="<b>"+field+"</b><br>";
 
-    values.forEach((val, i) => {
-        legendDiv.innerHTML +=
-            '<div><span style="background:' +
-            getColor(val, i) +
-            ';width:15px;height:15px;display:inline-block;margin-right:5px;"></span>' +
-            val + '</div>';
-    });
+ values.forEach((v,i)=>{
+  legendDiv.innerHTML+=
+   '<div><span style="background:'+
+   ['#e41a1c','#377eb8','#4daf4a','#984ea3',
+    '#ff7f00','#ffff33','#a65628','#f781bf','#999999'][i%9]+
+   ';width:15px;height:15px;display:inline-block;margin-right:5px;"></span>'
+   +v+"</div>";
+ });
+
 }
-
-// ================= LAYER CONTROL =================
-
-L.control.layers(baseMaps).addTo(map);
 
 </script>
 
