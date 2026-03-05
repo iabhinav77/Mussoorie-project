@@ -2,23 +2,34 @@
 <html>
 <head>
 <meta charset="utf-8"/>
-<title>Mussoorie WebGIS</title>
+<title>Mussoorie Road Network WebGIS</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <style>
-html,body{margin:0;height:100%;}
-#map{height:100%;}
+
+html,body{
+ margin:0;
+ height:100%;
+}
+
+#map{
+ height:100%;
+}
+
 #controls{
  position:absolute;
  top:10px;
  left:60px;
  background:white;
- padding:8px;
+ padding:10px;
  z-index:1000;
- box-shadow:0 0 5px rgba(0,0,0,0.3);
+ box-shadow:0 0 5px rgba(0,0,0,0.4);
+ width:220px;
+ font-size:13px;
 }
+
 .legend{
  position:absolute;
  bottom:30px;
@@ -27,17 +38,37 @@ html,body{margin:0;height:100%;}
  padding:10px;
  font-size:12px;
  z-index:1000;
- box-shadow:0 0 5px rgba(0,0,0,0.3);
+ box-shadow:0 0 5px rgba(0,0,0,0.4);
+ max-height:250px;
+ overflow:auto;
 }
-select{margin-bottom:5px;width:200px;}
+
+select{
+ width:200px;
+ margin-bottom:5px;
+}
+
+hr{
+ margin:8px 0;
+}
+
 </style>
 </head>
 
 <body>
 
 <div id="controls">
-<select id="layerSelector"></select><br>
-<select id="fieldSelector"></select>
+
+<b>Layer A</b><br>
+<select id="layerA"></select><br>
+<select id="fieldA"></select>
+
+<hr>
+
+<b>Layer B</b><br>
+<select id="layerB"></select><br>
+<select id="fieldB"></select>
+
 </div>
 
 <div id="map"></div>
@@ -49,45 +80,52 @@ select{margin-bottom:5px;width:200px;}
 
 var map = L.map('map').setView([30.45,78.08],12);
 
-// ================= BASE MAPS =================
+// ================= TILE BASEMAPS =================
 
-var satellite = L.tileLayer('Satellite%20Imagery/{z}/{x}/{y}.png',{
- minZoom:12,
- maxZoom:16
+var satellite = L.tileLayer('tiles/satellite/{z}/{x}/{y}.png',{
+ minZoom:10,
+ maxZoom:18
 });
 
-var toposheet = L.tileLayer('Toposheet_png/{z}/{x}/{y}.png',{
- minZoom:12,
- maxZoom:16
+var toposheet = L.tileLayer('tiles/toposheet/{z}/{x}/{y}.png',{
+ minZoom:10,
+ maxZoom:18
 });
 
 satellite.addTo(map);
 
 L.control.layers(
- {"Satellite":satellite,"Toposheet":toposheet},
+ {
+  "Satellite":satellite,
+  "Toposheet":toposheet
+ },
  {}
 ).addTo(map);
 
-// ================= GEOJSON FILE LIST =================
+
+// ================= GEOJSON DATA FILES =================
 
 var geojsonFiles = {
 
- "Geology": "Geology2M_GSI.geojson",
- "Geomorphology_GSI": "Geomorphology_GSI.geojson",
- "Geomorphology_Landform": "Geomorphology_Landform.geojson",
- "Road": "road.geojson",
- "Road_Buffer_100m": "road_100mbuffer.geojson",
- "Stream_Order_2500": "streamorder_2500.geojson",
- "Stream_Order_5000": "streamorder_5000.geojson",
- "WorldCover_LULC_2021": "WorldCover_LULC_2021.geojson"
+ "Geology": "data/Geology2M_GSI.geojson",
+ "Geomorphology_GSI": "data/Geomorphology_GSI.geojson",
+ "Geomorphology_Landform": "data/Geomorphology_Landform.geojson",
+ "Road_Polylines": "data/Road_Polylines.geojson",
+ "Road_Buffer_100m": "data/road_100mbuffer.geojson",
+ "Stream_Order": "data/stream_order10000.geojson",
+ "WorldCover_LULC_2021": "data/WorldCover_LULC_2021.geojson"
 
 };
 
+
 var loadedLayers = {};
-var activeLayerName = null;
+var layerA = null;
+var layerB = null;
+
 var legendDiv = document.getElementById("legend");
 
-// ================= LOAD ALL FILES =================
+
+// ================= LOAD GEOJSON =================
 
 Object.keys(geojsonFiles).forEach(name=>{
 
@@ -95,138 +133,227 @@ Object.keys(geojsonFiles).forEach(name=>{
  .then(res=>res.json())
  .then(data=>{
   loadedLayers[name] = {
-   data:data,
-   layer:null
+   data:data
   };
   updateLayerDropdown();
  });
 
 });
 
-// ================= DROPDOWN =================
+
+// ================= DROPDOWN POPULATION =================
 
 function updateLayerDropdown(){
 
- var selector = document.getElementById("layerSelector");
- selector.innerHTML="";
+var selectA = document.getElementById("layerA");
+var selectB = document.getElementById("layerB");
 
- Object.keys(loadedLayers).forEach(name=>{
-  var option=document.createElement("option");
-  option.value=name;
-  option.text=name;
-  selector.appendChild(option);
- });
+selectA.innerHTML="";
+selectB.innerHTML="";
 
- selector.onchange=function(){
-  activateLayer(this.value);
- };
+Object.keys(loadedLayers).forEach(name=>{
 
- if(!activeLayerName && Object.keys(loadedLayers).length>0){
-  activateLayer(Object.keys(loadedLayers)[0]);
- }
+ let optA=document.createElement("option");
+ optA.value=name;
+ optA.text=name;
+ selectA.appendChild(optA);
+
+ let optB=document.createElement("option");
+ optB.value=name;
+ optB.text=name;
+ selectB.appendChild(optB);
+
+});
+
+selectA.onchange=function(){
+ activateLayerA(this.value);
+};
+
+selectB.onchange=function(){
+ activateLayerB(this.value);
+};
+
+if(Object.keys(loadedLayers).length>0){
+
+ activateLayerA(Object.keys(loadedLayers)[0]);
+ activateLayerB(Object.keys(loadedLayers)[1] || Object.keys(loadedLayers)[0]);
+
 }
 
-// ================= ACTIVATE LAYER =================
-
-function activateLayer(name){
-
- activeLayerName=name;
-
- // remove all existing layers
- Object.values(loadedLayers).forEach(obj=>{
-  if(obj.layer) map.removeLayer(obj.layer);
- });
-
- var data=loadedLayers[name].data;
- var fields=Object.keys(data.features[0].properties);
-
- var fieldSelector=document.getElementById("fieldSelector");
- fieldSelector.innerHTML="";
-
- fields.forEach(f=>{
-  var option=document.createElement("option");
-  option.value=f;
-  option.text=f;
-  fieldSelector.appendChild(option);
- });
-
- fieldSelector.onchange=function(){
-  drawLayer(name,this.value);
- };
-
- drawLayer(name,fields[0]);
 }
 
-// ================= DRAW =================
 
-function drawLayer(name,field){
+// ================= ACTIVATE LAYER A =================
 
- if(loadedLayers[name].layer)
-  map.removeLayer(loadedLayers[name].layer);
+function activateLayerA(name){
 
- var data=loadedLayers[name].data;
+var data = loadedLayers[name].data;
+var fields = Object.keys(data.features[0].properties);
 
- var values=[...new Set(
-  data.features.map(f=>f.properties[field])
- )];
+var selector = document.getElementById("fieldA");
+selector.innerHTML="";
 
- function getColor(index){
-  var colors=[
-   "#e41a1c","#377eb8","#4daf4a",
-   "#984ea3","#ff7f00","#ffff33",
-   "#a65628","#f781bf","#999999",
-   "#66c2a5","#fc8d62","#8da0cb"
-  ];
-  return colors[index%colors.length];
- }
+fields.forEach(f=>{
+ let opt=document.createElement("option");
+ opt.value=f;
+ opt.text=f;
+ selector.appendChild(opt);
+});
 
- loadedLayers[name].layer=L.geoJSON(data,{
-  style:function(feature){
+selector.onchange=function(){
+ drawLayerA(name,this.value);
+};
 
-   var val=feature.properties[field];
-   var idx=values.indexOf(val);
+drawLayerA(name,fields[0]);
 
-   var geomType=feature.geometry.type;
+}
 
-   if(geomType==="LineString" || geomType==="MultiLineString"){
-    return{
-     color:getColor(idx),
-     weight:3,
-     fillOpacity:0
-    };
-   }
+
+// ================= ACTIVATE LAYER B =================
+
+function activateLayerB(name){
+
+var data = loadedLayers[name].data;
+var fields = Object.keys(data.features[0].properties);
+
+var selector = document.getElementById("fieldB");
+selector.innerHTML="";
+
+fields.forEach(f=>{
+ let opt=document.createElement("option");
+ opt.value=f;
+ opt.text=f;
+ selector.appendChild(opt);
+});
+
+selector.onchange=function(){
+ drawLayerB(name,this.value);
+};
+
+drawLayerB(name,fields[0]);
+
+}
+
+
+// ================= COLOR PALETTES =================
+
+var paletteA=[
+ "#e41a1c","#377eb8","#4daf4a",
+ "#984ea3","#ff7f00","#ffff33",
+ "#a65628","#f781bf","#999999"
+];
+
+var paletteB=[
+ "#1b9e77","#d95f02","#7570b3",
+ "#e7298a","#66a61e","#e6ab02",
+ "#a6761d","#666666"
+];
+
+
+// ================= DRAW LAYER A =================
+
+function drawLayerA(name,field){
+
+if(layerA) map.removeLayer(layerA);
+
+var data = loadedLayers[name].data;
+
+var values=[...new Set(
+ data.features.map(f=>f.properties[field])
+)];
+
+layerA = L.geoJSON(data,{
+ style:function(feature){
+
+  var val=feature.properties[field];
+  var idx=values.indexOf(val);
+
+  var geomType=feature.geometry.type;
+
+  if(geomType==="LineString" || geomType==="MultiLineString"){
 
    return{
-    color:getColor(idx),
-    weight:1,
-    fillOpacity:0.6
+    color:paletteA[idx%paletteA.length],
+    weight:3
    };
-  }
- }).addTo(map);
 
- updateLegend(values,field);
+  }
+
+  return{
+   color:paletteA[idx%paletteA.length],
+   weight:1,
+   fillOpacity:0.5
+  };
+
+ }
+}).addTo(map);
+
+updateLegend(values,field,"A");
+
 }
+
+
+// ================= DRAW LAYER B =================
+
+function drawLayerB(name,field){
+
+if(layerB) map.removeLayer(layerB);
+
+var data = loadedLayers[name].data;
+
+var values=[...new Set(
+ data.features.map(f=>f.properties[field])
+)];
+
+layerB = L.geoJSON(data,{
+ style:function(feature){
+
+  var val=feature.properties[field];
+  var idx=values.indexOf(val);
+
+  var geomType=feature.geometry.type;
+
+  if(geomType==="LineString" || geomType==="MultiLineString"){
+
+   return{
+    color:paletteB[idx%paletteB.length],
+    weight:2,
+    dashArray:"5,5"
+   };
+
+  }
+
+  return{
+   color:paletteB[idx%paletteB.length],
+   weight:1,
+   fillOpacity:0.25
+  };
+
+ }
+}).addTo(map);
+
+updateLegend(values,field,"B");
+
+}
+
 
 // ================= LEGEND =================
 
-function updateLegend(values,field){
+function updateLegend(values,field,layerName){
 
- legendDiv.innerHTML="<b>"+field+"</b><br>";
+var palette = layerName==="A" ? paletteA : paletteB;
 
- var colors=[
-  "#e41a1c","#377eb8","#4daf4a",
-  "#984ea3","#ff7f00","#ffff33",
-  "#a65628","#f781bf","#999999",
-  "#66c2a5","#fc8d62","#8da0cb"
- ];
+legendDiv.innerHTML="<b>Layer "+layerName+" : "+field+"</b><br>";
 
- values.forEach((v,i)=>{
-  legendDiv.innerHTML+=
-   '<div><span style="background:'+
-   colors[i%colors.length]+
-   ';width:15px;height:15px;display:inline-block;margin-right:5px;"></span>'
-   +v+"</div>";
- });
+values.forEach((v,i)=>{
+
+ legendDiv.innerHTML+=
+ '<div><span style="background:'+
+ palette[i%palette.length]+
+ ';width:15px;height:15px;display:inline-block;margin-right:5px;"></span>'
+ +v+"</div>";
+
+});
 
 }
 
