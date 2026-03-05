@@ -10,46 +10,46 @@
 <style>
 
 html,body{
- margin:0;
- height:100%;
+margin:0;
+height:100%;
 }
 
 #map{
- height:100%;
+height:100%;
 }
 
 #controls{
- position:absolute;
- top:10px;
- left:60px;
- background:white;
- padding:10px;
- z-index:1000;
- box-shadow:0 0 5px rgba(0,0,0,0.4);
- width:220px;
- font-size:13px;
+position:absolute;
+top:10px;
+left:60px;
+background:white;
+padding:10px;
+z-index:1000;
+box-shadow:0 0 5px rgba(0,0,0,0.4);
+width:220px;
+font-size:13px;
 }
 
 .legend{
- position:absolute;
- bottom:30px;
- right:10px;
- background:white;
- padding:10px;
- font-size:12px;
- z-index:1000;
- box-shadow:0 0 5px rgba(0,0,0,0.4);
- max-height:250px;
- overflow:auto;
+position:absolute;
+bottom:30px;
+right:10px;
+background:white;
+padding:10px;
+font-size:12px;
+z-index:1000;
+box-shadow:0 0 5px rgba(0,0,0,0.4);
+max-height:250px;
+overflow:auto;
 }
 
 select{
- width:200px;
- margin-bottom:5px;
+width:200px;
+margin-bottom:5px;
 }
 
 hr{
- margin:8px 0;
+margin:8px 0;
 }
 
 </style>
@@ -80,43 +80,44 @@ hr{
 
 var map = L.map('map').setView([30.45,78.08],12);
 
-// ================= TILE BASEMAPS =================
+// ================= BASEMAPS =================
 
-var satellite = L.tileLayer('tiles/satellite/{z}/{x}/{y}.png',{
- minZoom:10,
- maxZoom:18
+var satellite = L.tileLayer('Satellite Imagery/{z}/{x}/{y}.png',{
+minZoom:10,
+maxZoom:18
 });
 
-var toposheet = L.tileLayer('tiles/toposheet/{z}/{x}/{y}.png',{
- minZoom:10,
- maxZoom:18
+var topo = L.tileLayer('Toposheet_png/{z}/{x}/{y}.png',{
+minZoom:10,
+maxZoom:18
 });
 
 satellite.addTo(map);
 
 L.control.layers(
- {
-  "Satellite":satellite,
-  "Toposheet":toposheet
- },
- {}
+{
+"Satellite":satellite,
+"Toposheet":topo
+},
+{}
 ).addTo(map);
 
 
-// ================= GEOJSON DATA FILES =================
+// ================= GEOJSON FILES =================
 
 var geojsonFiles = {
 
- "Geology": "data/Geology2M_GSI.geojson",
- "Geomorphology_GSI": "data/Geomorphology_GSI.geojson",
- "Geomorphology_Landform": "data/Geomorphology_Landform.geojson",
- "Road_Polylines": "data/Road_Polylines.geojson",
- "Road_Buffer_100m": "data/road_100mbuffer.geojson",
- "Stream_Order": "data/stream_order10000.geojson",
- "WorldCover_LULC_2021": "data/WorldCover_LULC_2021.geojson"
+"Geology": "Geology2M_GSI.geojson",
+"Geomorphology_GSI": "Geomorphology_GSI.geojson",
+"Geomorphology_Landform": "Geomorphology_Landform.geojson",
+"Road_Polylines": "Road_Polylines.geojson",
+"Road_Polygons": "Road_Polygons.geojson",
+"Road_Buffer_100m": "road_100mbuffer.geojson",
+"Road_Points": "road_points.geojson",
+"Streams": "stream_order10000.geojson",
+"WorldCover": "WorldCover_LULC_2021.geojson"
 
 };
-
 
 var loadedLayers = {};
 var layerA = null;
@@ -129,19 +130,22 @@ var legendDiv = document.getElementById("legend");
 
 Object.keys(geojsonFiles).forEach(name=>{
 
- fetch(geojsonFiles[name])
- .then(res=>res.json())
- .then(data=>{
-  loadedLayers[name] = {
-   data:data
-  };
-  updateLayerDropdown();
- });
+fetch(geojsonFiles[name])
+.then(res=>res.json())
+.then(data=>{
+
+loadedLayers[name] = {
+data:data
+};
+
+updateLayerDropdown();
+
+});
 
 });
 
 
-// ================= DROPDOWN POPULATION =================
+// ================= POPULATE DROPDOWNS =================
 
 function updateLayerDropdown(){
 
@@ -153,30 +157,30 @@ selectB.innerHTML="";
 
 Object.keys(loadedLayers).forEach(name=>{
 
- let optA=document.createElement("option");
- optA.value=name;
- optA.text=name;
- selectA.appendChild(optA);
+let optA=document.createElement("option");
+optA.value=name;
+optA.text=name;
+selectA.appendChild(optA);
 
- let optB=document.createElement("option");
- optB.value=name;
- optB.text=name;
- selectB.appendChild(optB);
+let optB=document.createElement("option");
+optB.value=name;
+optB.text=name;
+selectB.appendChild(optB);
 
 });
 
 selectA.onchange=function(){
- activateLayerA(this.value);
+activateLayerA(this.value);
 };
 
 selectB.onchange=function(){
- activateLayerB(this.value);
+activateLayerB(this.value);
 };
 
 if(Object.keys(loadedLayers).length>0){
 
- activateLayerA(Object.keys(loadedLayers)[0]);
- activateLayerB(Object.keys(loadedLayers)[1] || Object.keys(loadedLayers)[0]);
+activateLayerA(Object.keys(loadedLayers)[0]);
+activateLayerB(Object.keys(loadedLayers)[1] || Object.keys(loadedLayers)[0]);
 
 }
 
@@ -194,14 +198,14 @@ var selector = document.getElementById("fieldA");
 selector.innerHTML="";
 
 fields.forEach(f=>{
- let opt=document.createElement("option");
- opt.value=f;
- opt.text=f;
- selector.appendChild(opt);
+let opt=document.createElement("option");
+opt.value=f;
+opt.text=f;
+selector.appendChild(opt);
 });
 
 selector.onchange=function(){
- drawLayerA(name,this.value);
+drawLayerA(name,this.value);
 };
 
 drawLayerA(name,fields[0]);
@@ -220,14 +224,14 @@ var selector = document.getElementById("fieldB");
 selector.innerHTML="";
 
 fields.forEach(f=>{
- let opt=document.createElement("option");
- opt.value=f;
- opt.text=f;
- selector.appendChild(opt);
+let opt=document.createElement("option");
+opt.value=f;
+opt.text=f;
+selector.appendChild(opt);
 });
 
 selector.onchange=function(){
- drawLayerB(name,this.value);
+drawLayerB(name,this.value);
 };
 
 drawLayerB(name,fields[0]);
@@ -238,15 +242,15 @@ drawLayerB(name,fields[0]);
 // ================= COLOR PALETTES =================
 
 var paletteA=[
- "#e41a1c","#377eb8","#4daf4a",
- "#984ea3","#ff7f00","#ffff33",
- "#a65628","#f781bf","#999999"
+"#e41a1c","#377eb8","#4daf4a",
+"#984ea3","#ff7f00","#ffff33",
+"#a65628","#f781bf","#999999"
 ];
 
 var paletteB=[
- "#1b9e77","#d95f02","#7570b3",
- "#e7298a","#66a61e","#e6ab02",
- "#a6761d","#666666"
+"#1b9e77","#d95f02","#7570b3",
+"#e7298a","#66a61e","#e6ab02",
+"#a6761d","#666666"
 ];
 
 
@@ -259,33 +263,22 @@ if(layerA) map.removeLayer(layerA);
 var data = loadedLayers[name].data;
 
 var values=[...new Set(
- data.features.map(f=>f.properties[field])
+data.features.map(f=>f.properties[field])
 )];
 
 layerA = L.geoJSON(data,{
- style:function(feature){
+style:function(feature){
 
-  var val=feature.properties[field];
-  var idx=values.indexOf(val);
+var val=feature.properties[field];
+var idx=values.indexOf(val);
 
-  var geomType=feature.geometry.type;
+return{
+color:paletteA[idx%paletteA.length],
+weight:3,
+fillOpacity:0.5
+};
 
-  if(geomType==="LineString" || geomType==="MultiLineString"){
-
-   return{
-    color:paletteA[idx%paletteA.length],
-    weight:3
-   };
-
-  }
-
-  return{
-   color:paletteA[idx%paletteA.length],
-   weight:1,
-   fillOpacity:0.5
-  };
-
- }
+}
 }).addTo(map);
 
 updateLegend(values,field,"A");
@@ -302,34 +295,23 @@ if(layerB) map.removeLayer(layerB);
 var data = loadedLayers[name].data;
 
 var values=[...new Set(
- data.features.map(f=>f.properties[field])
+data.features.map(f=>f.properties[field])
 )];
 
 layerB = L.geoJSON(data,{
- style:function(feature){
+style:function(feature){
 
-  var val=feature.properties[field];
-  var idx=values.indexOf(val);
+var val=feature.properties[field];
+var idx=values.indexOf(val);
 
-  var geomType=feature.geometry.type;
+return{
+color:paletteB[idx%paletteB.length],
+weight:2,
+dashArray:"5,5",
+fillOpacity:0.25
+};
 
-  if(geomType==="LineString" || geomType==="MultiLineString"){
-
-   return{
-    color:paletteB[idx%paletteB.length],
-    weight:2,
-    dashArray:"5,5"
-   };
-
-  }
-
-  return{
-   color:paletteB[idx%paletteB.length],
-   weight:1,
-   fillOpacity:0.25
-  };
-
- }
+}
 }).addTo(map);
 
 updateLegend(values,field,"B");
@@ -347,11 +329,11 @@ legendDiv.innerHTML="<b>Layer "+layerName+" : "+field+"</b><br>";
 
 values.forEach((v,i)=>{
 
- legendDiv.innerHTML+=
- '<div><span style="background:'+
- palette[i%palette.length]+
- ';width:15px;height:15px;display:inline-block;margin-right:5px;"></span>'
- +v+"</div>";
+legendDiv.innerHTML+=
+'<div><span style="background:'+
+palette[i%palette.length]+
+';width:15px;height:15px;display:inline-block;margin-right:5px;"></span>'
++v+"</div>";
 
 });
 
