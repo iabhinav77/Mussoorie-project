@@ -80,6 +80,7 @@ margin:8px 0;
 
 var map = L.map('map').setView([30.45,78.08],12);
 
+
 // ================= BASEMAPS =================
 
 var satellite = L.tileLayer('Satellite Imagery/{z}/{x}/{y}.png',{
@@ -92,12 +93,24 @@ minZoom:10,
 maxZoom:18
 });
 
+var hillshade = L.tileLayer('Hillshade/{z}/{x}/{y}.png',{
+minZoom:10,
+maxZoom:18
+});
+
+var slope = L.tileLayer('Slope/{z}/{x}/{y}.png',{
+minZoom:10,
+maxZoom:18
+});
+
 satellite.addTo(map);
 
 L.control.layers(
 {
-"Satellite":satellite,
-"Toposheet":topo
+"Satellite": satellite,
+"Toposheet": topo,
+"Hillshade": hillshade,
+"Slope": slope
 },
 {}
 ).addTo(map);
@@ -145,7 +158,7 @@ updateLayerDropdown();
 });
 
 
-// ================= POPULATE DROPDOWNS =================
+// ================= DROPDOWN SETUP =================
 
 function updateLayerDropdown(){
 
